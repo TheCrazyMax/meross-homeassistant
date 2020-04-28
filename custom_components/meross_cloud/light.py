@@ -42,6 +42,7 @@ class LightEntityWrapper(Light):
         self._channel_id = channel
         self._available = True  # Assume the mqtt client is connected
         self._first_update_done = False
+        self._ignore_update = False
 
         # Assume this device supports all the following features.
         # If that's not the case, we'll discover it after first UPDATE() occurs
@@ -51,6 +52,10 @@ class LightEntityWrapper(Light):
         self._flags |= SUPPORT_COLOR_TEMP
     
     def update(self):
+        if self._ignore_update:
+            _LOGGER.warning("Skipping UPDATE as ignore_update is set.")
+            return
+
         if self._device.online:
             try:
                 self._device.get_status(force_status_refresh=True)
@@ -215,9 +220,11 @@ class LightEntityWrapper(Light):
 
     async def async_added_to_hass(self) -> None:
         self._device.register_event_callback(self.device_event_handler)
+        self._ignore_update = False
 
     async def async_will_remove_from_hass(self) -> None:
         self._device.unregister_event_callback(self.device_event_handler)
+        self._ignore_update = True
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):

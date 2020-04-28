@@ -24,8 +24,13 @@ class PowerSensorWrapper(Entity, MerossEntityWrapper):
         self._id = calculate_sensor_id(device.uuid)
         self._sensor_info = None
         self._available = True  # Assume the mqtt client is connected
+        self._ignore_update = False
 
     def update(self):
+        if self._ignore_update:
+            _LOGGER.warning("Skipping UPDATE as ignore_update is set.")
+            return
+
         # Given that the device is online, we force a full state refresh.
         # This is necessary as this device is handled with HA should_poll=True
         # flag, so the UPDATE should every time update its status.
@@ -35,10 +40,10 @@ class PowerSensorWrapper(Entity, MerossEntityWrapper):
                 'current': 0,
                 'power': 0
             }
-            self._device.get_status(force_status_refresh=self._device.online)
+            on_off = self._device.get_status(force_status_refresh=self._device.online)
 
             # Update electricity stats only if the device is online and currently turned on
-            if self.available and self._device.get_status():
+            if self.available and on_off:
                 self._sensor_info = self._device.get_electricity()
 
         except CommandTimeoutException as e:
@@ -149,9 +154,11 @@ class PowerSensorWrapper(Entity, MerossEntityWrapper):
 
     async def async_added_to_hass(self) -> None:
         self._device.register_event_callback(self.device_event_handler)
+        self._ignore_update = False
 
     async def async_will_remove_from_hass(self) -> None:
         self._device.unregister_event_callback(self.device_event_handler)
+        self._ignore_update = True
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):

@@ -34,8 +34,13 @@ class SwitchEntityWrapper(SwitchDevice, MerossEntityWrapper):
         self._channel_id = channel
         self._available = True  # Assume the mqtt client is connected
         self._first_update_done = False
+        self._ignore_update = False
 
     def update(self):
+        if self._ignore_update:
+            _LOGGER.warning("Skipping UPDATE as ignore_update is set.")
+            return
+
         if self._device.online:
             try:
                 self._device.get_status(force_status_refresh=True)
@@ -110,9 +115,11 @@ class SwitchEntityWrapper(SwitchDevice, MerossEntityWrapper):
 
     async def async_added_to_hass(self) -> None:
         self._device.register_event_callback(self.device_event_handler)
+        self._ignore_update = False
 
     async def async_will_remove_from_hass(self) -> None:
         self._device.unregister_event_callback(self.device_event_handler)
+        self._ignore_update = True
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -140,4 +147,5 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 def setup_platform(hass, config, async_add_entities, discovery_info=None):
+    _LOGGER.info("SETUP PLATFORM")
     pass
